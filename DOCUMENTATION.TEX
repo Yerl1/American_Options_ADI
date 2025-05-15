@@ -1,0 +1,67 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\geometry{a4paper, margin=1in}
+
+\title{On the Pricing of American Options Using ADI Schemes and Their Optimal Exercise Boundaries}
+\author{Your Name \\ Astana IT University}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report investigates the numerical pricing of American-style financial options by leveraging Alternating Direction Implicit (ADI) schemes in conjunction with Finite Element Method (FEM) and Finite Difference Method (FDM) spatial discretizations. The key challenge in American option pricing lies in the optimal exercise boundary, which introduces a free boundary problem governed by a partial differential inequality. We formulate this problem mathematically, apply operator splitting via the ADI method, and explore different values of the Euler $\theta$-scheme ($\theta = 0, 0.5, 1$) to handle temporal discretization. Numerical experiments are conducted to compare the performance and accuracy of P1 and P2 FEM against FDM benchmarks, with the Method of Manufactured Solutions (MMS) aiding validation. Convergence plots and option price comparisons reveal the effectiveness of FEM in accurately resolving the optimal stopping region.
+\end{abstract}
+
+\section{Introduction}
+
+The valuation of financial derivatives, particularly options, is a central problem in computational finance. American options differ from European ones in that they can be exercised at any point before expiry, introducing a free boundary problem where the early exercise region must be determined alongside the option price.
+
+Traditional numerical methods, such as the Finite Difference Method (FDM), are widely used but may struggle near the free boundary. In contrast, Finite Element Methods (FEM) provide greater flexibility and accuracy, particularly when coupled with suitable time discretization techniques.
+
+Alternating Direction Implicit (ADI) schemes offer an efficient and stable framework for solving multi-dimensional parabolic PDEs. This project builds upon ADI approaches discussed by Wu \cite{wu2009fast}, applying them to American option pricing in a transformed Black-Scholes framework. We also compare P1 and P2 FEM to FDM to assess accuracy and convergence in resolving optimal stopping boundaries.
+
+% Секция 2: Формулировка модели
+\section{Model Formulation}
+The valuation of American options, particularly American put options, presents a significant challenge in financial mathematics due to the option holder's right to exercise the option at any time before or at expiration. This feature introduces a free boundary problem, where the optimal exercise boundary \( S_f(t) \), representing the asset price at which early exercise is optimal, must be determined simultaneously with the option price. The model formulation involves deriving the governing partial differential equation (PDE) under the Black-Scholes framework, specifying appropriate terminal and boundary conditions to ensure a unique solution, and applying transformations to simplify numerical implementation. These steps provide the foundation for solving the PDE using numerical methods, such as Alternating Direction Implicit (ADI) schemes, which are well-suited for handling the multidimensional and nonlinear nature of the problem.
+
+This section outlines the Black-Scholes PDE for American put options, defines the terminal and boundary conditions, including those associated with the free boundary, and introduces a logarithmic transformation to facilitate numerical discretization. The formulation captures the dynamics of the underlying asset price, the effect of early exercise, and the computational challenges posed by the moving boundary, setting the stage for the application of ADI schemes.
+
+\subsection{PDE Setup}
+The Black-Scholes framework provides a robust model for option pricing by assuming that the underlying asset price \( S \) follows a geometric Brownian motion with constant volatility and risk-free interest rate. For an American put option, the option value \( V(S, t) \), which depends on the asset price \( S \) and time \( t \), satisfies the Black-Scholes partial differential equation (PDE) in the continuation region, where holding the option is optimal (i.e., where \( V(S, t) > K - S \), with \( K \) being the strike price). The PDE describes the evolution of the option price over time and accounts for the stochastic behavior of the underlying asset. Specifically, the PDE is given by:
+
+\begin{equation}
+\frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + (r - D_0) S \frac{\partial V}{\partial S} - r V = 0,
+\end{equation}
+
+where:
+\begin{itemize}
+    \item \( V(S, t) \): The value of the American put option at asset price \( S \) and time \( t \).
+    \item \( S \): The price of the underlying asset, a positive real number (\( S \geq 0 \)).
+    \item \( t \): The current time, with \( t \in [0, T] \), where \( T \) is the option's expiration date.
+    \item \( \sigma \): The volatility of the underlying asset (e.g., \( \sigma = 0.3 \)).
+    \item \( r \): The risk-free interest rate (e.g., \( r = 0.1 \)).
+    \item \( D_0 \): The continuous dividend yield (e.g., \( D_0 = 0 \)).
+    \item \( \frac{\partial V}{\partial t} \): The time derivative, capturing the option's time decay.
+    \item \( \frac{\partial V}{\partial S} \): The first derivative (delta), measuring sensitivity to asset price changes.
+    \item \( \frac{\partial^2 V}{\partial S^2} \): The second derivative (gamma), measuring the convexity of the option price.
+\end{itemize}
+
+The PDE holds in the continuation region. In the exercise region (where \( V(S, t) = K - S \)), the option is exercised early, and the PDE does not apply. The transition between these regions occurs at the optimal exercise boundary \( S_f(t) \), which is a free boundary that must be determined.
+
+\subsection{Terminal-Boundary Conditions}
+To ensure a unique solution to the PDE, we specify terminal conditions at expiration (\( t = T \)) and boundary conditions at the extremes of the asset price domain (\( S = 0 \), \( S \to \infty \)) and at the free boundary \( S_f(t) \).
+
+\subsubsection{Terminal Condition}
+At expiration, the option's value equals its intrinsic value:
+
+\begin{equation}
+V(S, T) = \max(K - S, 0),
+\end{equation}
+\end{document}
