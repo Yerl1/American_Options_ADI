@@ -64,4 +64,118 @@ At expiration, the option's value equals its intrinsic value:
 \begin{equation}
 V(S, T) = \max(K - S, 0),
 \end{equation}
+
+\section*{Overview}
+This MATLAB code implements a predictor-corrector finite difference scheme to calculate the early exercise boundary ($S_f$) for an American put option, based on the method described in Zhu and Zhang's 2011 paper \textit{``A new predictor-corrector scheme for valuing American puts''}. The code provides both the option pricing solution and convergence analysis for time and asset price discretizations.
+
+\section*{Main Function: \texttt{american\_option(N, M)}}
+
+\subsection*{Description}
+Computes the early exercise boundary for an American put option using a predictor-corrector finite difference scheme.
+
+\subsection*{Input Parameters}
+\begin{itemize}
+  \item \texttt{N}: Number of time steps (time discretization)
+  \item \texttt{M}: Number of asset price steps (price discretization)
+\end{itemize}
+
+\subsection*{Output}
+\begin{itemize}
+  \item \texttt{S\_f}: Vector representing the early exercise boundary at each time step
+\end{itemize}
+
+\section*{Mathematical Model}
+The function solves the American put option pricing problem with the following parameters:
+\begin{itemize}
+  \item Time to maturity ($T$): 1 year
+  \item Volatility ($\sigma$): 0.3 (30\%)
+  \item Risk-free rate ($r$): 0.1 (10\%)
+  \item Dividend yield ($D_0$): 0
+  \item Strike price ($X$): 100
+\end{itemize}
+
+The problem is transformed using:
+\[
+\tau = \frac{T \sigma^2}{2}, \quad x = \log\left(\frac{S}{S_f}\right), \quad \gamma = \frac{2r}{\sigma^2}, \quad D = \frac{2D_0}{\sigma^2}
+\]
+
+\section*{Numerical Scheme}
+\begin{enumerate}
+  \item \textbf{Initialization}: Sets up the grid and initial conditions
+  \item \textbf{Time Stepping}:
+    \begin{itemize}
+      \item \textit{Predictor Step}: Estimates the early exercise boundary using an explicit Euler scheme
+      \item \textit{Corrector Step}: Refines the estimate using a Crank-Nicolson scheme
+    \end{itemize}
+  \item \textbf{Matrix Solution}: Solves the resulting tridiagonal system using sparse matrix operations
+\end{enumerate}
+
+\section*{Boundary Conditions}
+\[
+P(x=0, \tau) = 1 - S_f(\tau), \qquad P(x = x_{\max}, \tau) = 0
+\]
+
+\section*{Convergence Analysis Script}
+
+\subsection*{Time Convergence Test}
+\begin{itemize}
+  \item Tests convergence with respect to time discretization (fixed $M=100$, varying $N = [200, 400, 800, 1600, 3200]$)
+  \item Displays:
+  \begin{itemize}
+    \item Final early exercise boundary value ($S_f \cdot X$)
+    \item Differences between consecutive refinements
+    \item Ratios of consecutive differences (showing convergence rate)
+  \end{itemize}
+\end{itemize}
+
+\subsection*{Asset Price Convergence Test}
+\begin{itemize}
+  \item Tests convergence with respect to price discretization (fixed $N=100$, varying $M = [200, 400, 800, 1600, 3200]$)
+  \item Displays similar convergence metrics for the spatial dimension
+\end{itemize}
+
+\section*{Key Features}
+\begin{enumerate}
+  \item \textbf{Efficient Implementation}:
+  \begin{itemize}
+    \item Uses sparse matrices for solving the tridiagonal system
+    \item Combines predictor-corrector approach for stability and accuracy
+    \item No iterations required at each time step
+  \end{itemize}
+  \item \textbf{Convergence Analysis}:
+  \begin{itemize}
+    \item Provides quantitative measures of convergence for both time and space discretizations
+    \item Shows the order of convergence through difference ratios
+  \end{itemize}
+  \item \textbf{Flexibility}:
+  \begin{itemize}
+    \item Easy to modify parameters (volatility, interest rate, dividend yield)
+    \item Can be extended to other option types with American-style exercise
+  \end{itemize}
+\end{enumerate}
+
+\section*{Usage Example}
+\begin{lstlisting}[language=Matlab]
+% Run convergence tests
+X = 100;
+N_list = [200, 400, 800, 1600, 3200];
+S_f_values = zeros(size(N_list));
+
+for i = 1:length(N_list)
+    N = N_list(i);
+    S_f = american_option(N, 100); 
+    S_f_values(i) = S_f(end) * X; 
+end
+\end{lstlisting}
+
+\section*{References}
+Zhu, S.-P., \& Zhang, J. (2011). \textit{A new predictor-corrector scheme for valuing American puts}. Applied Mathematics and Computation, 217(9), 4439–4452.
+
+\section*{Notes}
+\begin{itemize}
+  \item The code uses logarithmic transformation of the asset price for numerical stability
+  \item The predictor-corrector scheme helps maintain stability while achieving good accuracy
+  \item Convergence tables help verify the numerical implementation and demonstrate the method's reliability
+\end{itemize}
+
 \end{document}
