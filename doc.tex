@@ -1,0 +1,1187 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\lstset{
+    language=Matlab,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    frame=single,
+    breaklines=true,
+    tabsize=4
+}
+\geometry{margin=1in}
+\title{On the Pricing of American Options Using ADI Schemes and Their Optimal Exercise Boundaries}
+\author{\[Dilnaz Amanzholova,Dana Akhmetova,Doshanov Erlan,Bakhadir Assemay,Kudaibergen Alnur\]}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report investigates the pricing of American options through Alternating Direction Implicit (ADI) schemes, highlighting the calculation of optimal exercise boundaries. We employ numerical methods including Finite Element Method (FEM) and Finite Difference Method (FDM), utilizing Euler theta schemes. Comparative analysis demonstrates the convergence and accuracy of proposed methods against established benchmarks.
+\end{abstract}
+
+\section{Introduction}
+Pricing American options is challenging due to the optimal exercise feature. Various numerical methods have been proposed, including binomial and trinomial trees, Monte Carlo simulations, and finite difference methods (FDM). Recently, Alternating Direction Implicit (ADI) schemes have gained attention due to their stability and efficiency. This work reviews the existing literature, focusing on ADI techniques and their comparative performance against traditional numerical approaches.
+
+
+
+% Font configuration
+\usepackage{times}
+\usepackage{mathptmx}
+
+% Theorem environments
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{definition}
+\newtheorem{remark}{Remark}
+
+% Title and author
+\title{On the Pricing of American Options Using ADI Schemes and Their Optimal Exercise Boundaries}
+\author{Your Name}
+\date{\today}
+
+
+
+\maketitle
+
+\section{Model Formulation}
+The valuation of American options, particularly American put options, presents a significant challenge in financial mathematics due to the option holder's right to exercise the option at any time before or at expiration. This feature introduces a \emph{free boundary problem}, where the optimal exercise boundary \( S_f(t) \), representing the asset price at which early exercise is optimal, must be determined simultaneously with the option price. The model formulation involves deriving the governing partial differential equation (PDE) under the Black-Scholes framework, specifying appropriate terminal and boundary conditions to ensure a unique solution, and applying transformations to simplify numerical implementation. These steps provide the foundation for solving the PDE using numerical methods, such as Alternating Direction Implicit (ADI) schemes, which are well-suited for handling the multidimensional and nonlinear nature of the problem.
+
+This section outlines the Black-Scholes PDE for American put options, defines the terminal and boundary conditions, including those associated with the free boundary, and introduces a logarithmic transformation to facilitate numerical discretization. The formulation captures the dynamics of the underlying asset price, the effect of early exercise, and the computational challenges posed by the moving boundary, setting the stage for the application of ADI schemes.
+
+\subsection{PDE Setup}
+The Black-Scholes framework provides a robust model for option pricing by assuming that the underlying asset price \( S \) follows a geometric Brownian motion with constant volatility and risk-free interest rate. For an American put option, the option value \( V(S, t) \), which depends on the asset price \( S \) and time \( t \), satisfies the Black-Scholes partial differential equation (PDE) in the \emph{continuation region}, where holding the option is optimal (i.e., where \( V(S, t) > K - S \), with \( K \) being the strike price). The PDE describes the evolution of the option price over time and accounts for the stochastic behavior of the underlying asset. Specifically, the PDE is given by:
+
+\begin{equation}
+\frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + (r - D_0) S \frac{\partial V}{\partial S} - r V = 0,
+\label{eq:bs_pde}
+\end{equation}
+
+where:
+\begin{itemize}
+    \item \( V(S, t) \): The value of the American put option at asset price \( S \) and time \( t \).
+    \item \( S \): The price of the underlying asset, a positive real number (\( S \geq 0 \)).
+    \item \( t \): The current time, with \( t \in [0, T] \), where \( T \) is the option's expiration date.
+    \item \( \sigma \): The volatility of the underlying asset (e.g., \( \sigma = 0.3 \)).
+    \item \( r \): The risk-free interest rate (e.g., \( r = 0.1 \)).
+    \item \( D_0 \): The continuous dividend yield (e.g., \( D_0 = 0 \)).
+    \item \( \frac{\partial V}{\partial t} \): The time derivative, capturing the option's time decay.
+    \item \( \frac{\partial V}{\partial S} \): The first derivative (delta), measuring sensitivity to asset price changes.
+    \item \( \frac{\partial^2 V}{\partial S^2} \): The second derivative (gamma), measuring the convexity of the option price.
+\end{itemize}
+
+The PDE \eqref{eq:bs_pde} holds in the continuation region. In the \emph{exercise region} (where \( V(S, t) = K - S \)), the option is exercised early, and the PDE does not apply. The transition between these regions occurs at the optimal exercise boundary \( S_f(t) \), which is a free boundary that must be determined.
+
+The terms in the PDE reflect economic factors:
+\begin{itemize}
+    \item \( \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} \): Accounts for volatility, scaling with \( S^2 \).
+    \item \( (r - D_0) S \frac{\partial V}{\partial S} \): Represents the asset's drift, adjusted for dividends.
+    \item \( -r V \): Discounts the option value at the risk-free rate.
+    \item \( \frac{\partial V}{\partial t} \): Captures time decay.
+\end{itemize}
+
+For American options, the nonlinearity due to early exercise requires numerical methods like ADI schemes to solve the PDE and track \( S_f(t) \).
+
+\subsection{Terminal-Boundary Conditions}
+To ensure a unique solution to the PDE \eqref{eq:bs_pde}, we specify terminal conditions at expiration (\( t = T \)) and boundary conditions at the extremes of the asset price domain (\( S = 0 \), \( S \to \infty \)) and at the free boundary \( S_f(t) \).
+
+\subsubsection{Terminal Condition}
+At expiration, the option's value equals its intrinsic value:
+
+\begin{equation}
+V(S, T) = \max(K - S, 0),
+\label{eq:terminal_condition}
+\end{equation}
+
+where \( K \) is the strike price (e.g., \( K = 100 \)). If \( S < K \), the payoff is \( K - S \); otherwise, it is zero.
+
+For \( K = 100 \), if \( S = 90 \), then \( V(90, T) = 10 \); if \( S = 110 \), then \( V(110, T) = 0 \).
+
+\subsubsection{Boundary Conditions}
+1. \textbf{Boundary at \( S = 0 \)}:
+   If the asset price is zero, exercising the put yields \( K \), discounted to time \( t \):
+
+   \begin{equation}
+   V(0, t) = K e^{-r(T - t)}.
+   \label{eq:boundary_s0}
+   \end{equation}
+
+   For \( K = 100 \), \( r = 0.1 \), \( T = 1 \), \( t = 0.5 \):
+   \[
+   V(0, 0.5) = 100 e^{-0.1 \times 0.5} \approx 95.12.
+   \]
+
+2. \textbf{Boundary as \( S \to \infty \)}:
+   As \( S \) grows large, the put option becomes worthless:
+
+   \begin{equation}
+   \lim_{S \to \infty} V(S, t) = 0.
+   \label{eq:boundary_sinf}
+   \end{equation}
+
+   Numerically, we use a large \( S_{\max} \) (e.g., \( S_{\max} = 4K \)).
+
+3. \textbf{Free Boundary Conditions}:
+   At \( S_f(t) \), the option value equals its intrinsic value:
+
+   \begin{equation}
+   V(S_f(t), t) = K - S_f(t),
+   \label{eq:free_boundary_value}
+   \end{equation}
+
+   with the smooth pasting condition:
+
+   \begin{equation}
+   \frac{\partial V}{\partial S}(S_f(t), t) = -1.
+   \label{eq:smooth_pasting}
+   \end{equation}
+
+   If \( K = 100 \), \( S_f(t) = 80 \), then \( V(80, t) = 20 \), and exercising at \( S = 75 \) yields \( 100 - 75 = 25 \).
+
+\begin{remark}
+The free boundary \( S_f(t) \) is solved iteratively, making ADI schemes suitable for tracking it.
+\end{remark}
+
+\subsection{Transformation}
+The PDE \eqref{eq:bs_pde} and its free boundary are challenging due to the unbounded domain and moving boundary. We apply a logarithmic transformation and a Landau transformation to simplify numerical solution with ADI schemes.
+
+\subsubsection{Logarithmic Transformation}
+We transform the asset price:
+
+\begin{equation}
+x = \ln \left( \frac{S}{K} \right), \quad \tau = T - t, \quad u(x, \tau) = V(K e^x, T - \tau).
+\label{eq:log_transform}
+\end{equation}
+
+The transformed PDE is:
+
+\begin{equation}
+\frac{\partial u}{\partial \tau} = \frac{1}{2} \sigma^2 \frac{\partial^2 u}{\partial x^2} + \left( r - \frac{1}{2} \sigma^2 \right) \frac{\partial u}{\partial x} - r u.
+\label{eq:transformed_pde}
+\end{equation}
+
+The transformed conditions are:
+\begin{itemize}
+    \item Terminal condition (\( \tau = 0 \)):
+    \[
+    u(x, 0) = K \max(1 - e^x, 0).
+    \]
+    \item Boundary at \( x \to -\infty \):
+    \[
+    u(x, \tau) = K e^{-r \tau}.
+    \]
+    \item Boundary at \( x \to \infty \):
+    \[
+    u(x, \tau) = 0.
+    \]
+\end{itemize}
+
+
+\appendix
+\section{Methodology}
+\label{sec:predictor-corrector}
+
+In this section, we present a detailed explanation of the predictor-corrector finite difference method (FDM) proposed for solving the nonlinear partial differential equation (PDE) system governing the valuation of American put options, as described in the paper by Zhu and Zhang (2011). The method addresses the challenge of pricing American put options, which involves determining both the option value and the optimal exercise boundary, a free boundary that evolves over time. The approach leverages the Landau transform to fix the moving boundary and employs a two-phase predictor-corrector scheme at each time step to handle the nonlinearity of the system efficiently. We begin by discussing the domain truncation and discretization, followed by the derivation of an additional boundary condition, and then detail the predictor and corrector phases, including their numerical implementation.
+The differential system for pricing American put options can be written as:
+\begin{equation}
+\begin{cases}
+\frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2S^2\frac{\partial^2 V}{\partial S^2} + (r - D_0)S\frac{\partial V}{\partial S} - rV = 0, \\
+V(S_f(t),t) = X - S_f(t), \\
+\frac{\partial V}{\partial S}(S_f(t),t) = -1, \\
+\lim_{S\to\infty} V(S,t) = 0, \\
+V(S, T) = \max\{X - S, 0\}.
+\end{cases}
+\end{equation}
+
+To solve the differential system (9) effectively, we normalize all variables in the system by introducing the following dimensionless variables:
+\begin{align*}
+V' &= \frac{V}{X}, \\
+S' &= \frac{S}{X}, \\
+\tau &= (T - t)\frac{\sigma^2}{2}, \\
+c &= \frac{2r}{\sigma^2}, \\
+D &= \frac{2D_0}{\sigma^2}, \\
+S'_f(\tau) &= \frac{S_f(\tau)}{X}.
+\end{align*}
+\section*{Equation After Substitution of Normalized Variables}
+After substituting the normalized variables $V = V' \cdot X$, $S = S' \cdot X$, $\tau = (T - t) \cdot \frac{\sigma^2}{2}$:
+\begin{equation}
+-\frac{\sigma^2}{2} \frac{\partial V'}{\partial \tau} + \frac{1}{2} \sigma^2 (S' \cdot X)^2 \frac{1}{X^2} \frac{\partial^2 V'}{\partial S'^2} + (r - D_0) (S' \cdot X) \frac{1}{X} \frac{\partial V'}{\partial S'} - r (V' \cdot X) = 0.
+\end{equation}
+
+Where:
+\begin{itemize}
+\item $V' = \frac{V}{X}$ - normalized option price
+\item $S' = \frac{S}{X}$ - normalized underlying asset price
+\item $\tau = (T - t) \cdot \frac{\sigma^2}{2}$ - normalized time to expiration
+\item $\sigma$ - volatility
+\item $r$ - risk-free interest rate
+\item $D_0$ - dividend yield
+\item $X$ - strike price
+\end{itemize}
+
+\section*{Normalization, Step 1: Simplifying Each Term}
+Let's simplify each term of the equation.
+
+\subsection*{First Term}
+$-\frac{\sigma^2}{2} \frac{\partial V'}{\partial \tau}$ is already in normalized form since $\tau$ is normalized time.
+
+\subsection*{Second Term}
+\begin{align*}
+&\frac{1}{2} \sigma^2 (S' \cdot X)^2 \frac{1}{X^2} \frac{\partial^2 V'}{\partial S'^2} \\
+&= \frac{1}{2} \sigma^2 (S'^2 \cdot X^2) \frac{1}{X^2} \frac{\partial^2 V'}{\partial S'^2} \\
+&= \frac{1}{2} \sigma^2 S'^2 \frac{\partial^2 V'}{\partial S'^2}
+\end{align*}
+
+\subsection*{Third Term}
+\begin{align*}
+&(r - D_0) (S' \cdot X) \frac{1}{X} \frac{\partial V'}{\partial S'} \\
+&= (r - D_0) S' \cdot \frac{X}{X} \frac{\partial V'}{\partial S'} \\
+&= (r - D_0) S' \frac{\partial V'}{\partial S'}
+\end{align*}
+
+\subsection*{Fourth Term}
+$- r (V' \cdot X) = -r V' X$
+
+\subsection*{Simplified Equation}
+\begin{equation}
+-\frac{\sigma^2}{2} \frac{\partial V'}{\partial \tau} + \frac{1}{2} \sigma^2 S'^2 \frac{\partial^2 V'}{\partial S'^2} + (r - D_0) S' \frac{\partial V'}{\partial S'} - r V' X = 0
+\end{equation}
+
+\section*{Step 2: Division by $\sigma^2 X$ for Normalization}
+Divide the entire equation by $\sigma^2 X$ to make it dimensionless:
+
+\subsection*{First Term}
+$\frac{-\frac{\sigma^2}{2} \frac{\partial V'}{\partial \tau}}{\sigma^2 X} = -\frac{1}{2X} \frac{\partial V'}{\partial \tau}$
+
+\subsection*{Second Term}
+$\frac{\frac{1}{2} \sigma^2 S'^2 \frac{\partial^2 V'}{\partial S'^2}}{\sigma^2 X} = \frac{1}{2X} S'^2 \frac{\partial^2 V'}{\partial S'^2}$
+
+\subsection*{Third Term}
+$\frac{(r - D_0) S' \frac{\partial V'}{\partial S'}}{\sigma^2 X} = \frac{r - D_0}{\sigma^2 X} S' \frac{\partial V'}{\partial S'}$
+
+\subsection*{Fourth Term}
+$\frac{-r V' X}{\sigma^2 X} = -\frac{r}{\sigma^2} V'$
+
+\subsection*{Equation After Division}
+\begin{equation}
+-\frac{1}{2X} \frac{\partial V'}{\partial \tau} + \frac{1}{2X} S'^2 \frac{\partial^2 V'}{\partial S'^2} + \frac{r - D_0}{\sigma^2 X} S' \frac{\partial V'}{\partial S'} - \frac{r}{\sigma^2} V' = 0
+\end{equation}
+
+\section*{Step 3: Multiplication by $2X$ to Eliminate Denominator}
+Multiply by $2X$ to remove $X$ from denominators:
+
+\begin{equation}
+-\frac{\partial V'}{\partial \tau} + S'^2 \frac{\partial^2 V'}{\partial S'^2} + \frac{r - D_0}{\sigma^2} \cdot 2 S' \frac{\partial V'}{\partial S'} - \frac{r}{\sigma^2} \cdot 2 V' = 0
+\end{equation}
+
+\section*{Step 4: Introducing Dimensionless Parameters}
+Define dimensionless parameters:
+\begin{align*}
+\gamma &= \frac{2r}{\sigma^2} \quad \text{(normalized interest rate)} \\
+D &= \frac{2D_0}{\sigma^2} \quad \text{(normalized dividend yield)}
+\end{align*}
+
+The coefficient for the third term:
+\begin{equation}
+\frac{r - D_0}{\sigma^2} \cdot 2 = \frac{2r - 2D_0}{\sigma^2} = \gamma - D
+\end{equation}
+
+The coefficient for the fourth term:
+\begin{equation}
+\frac{r}{\sigma^2} \cdot 2 = \gamma
+\end{equation}
+
+\subsection*{Final Normalized Equation}
+\begin{equation}
+-\frac{\partial V'}{\partial \tau} + S'^2 \frac{\partial^2 V'}{\partial S'^2} + (\gamma - D) S' \frac{\partial V'}{\partial S'} - \gamma V' = 0
+\end{equation}
+
+\section*{Step 5: Dropping Prime Notation}
+Following convention, we drop the primes to indicate dimensionless variables ($V' \to V$, $S' \to S$):
+
+\begin{equation}
+-\frac{\partial V}{\partial \tau} + S^2 \frac{\partial^2 V}{\partial S^2} + (\gamma - D) S \frac{\partial V}{\partial S} - \gamma V = 0
+\end{equation}
+
+\section*{Final Result}
+The original equation has been simplified through sequential transformation of each term using normalized variables. Division by $\sigma^2 X$ and subsequent multiplication by $2X$ eliminated dimensional coefficients. The introduction of dimensionless parameters $\gamma$ and $D$ made the equation completely dimensionless.
+
+The final normalized equation matches the form presented in the literature:
+\begin{equation}
+-\frac{\partial V}{\partial \tau} + S^2 \frac{\partial^2 V}{\partial S^2} + (\gamma - D) S \frac{\partial V}{\partial S} - \gamma V = 0
+\end{equation}
+where $\gamma = \frac{2r}{\sigma^2}$, $D = \frac{2D_0}{\sigma^2}$, and $V$, $S$, $\tau$ are dimensionless variables.
+\section{Landau transform}
+System represents a free boundary problem, where
+\[S_f(\tau)\]
+is unknown and must be determined during the solution. The difficulty is that the domain
+\[S \ge S_f(\tau)\]
+changes over time \(\tau\), complicating both numerical and analytical treatments.
+
+\section*{Purpose of the Landau Transformation}
+The Landau transformation is used to convert a free boundary problem into one with a fixed boundary, simplifying its solution. The main idea is to introduce a new independent variable that “freezes” the moving boundary \(S_f(\tau)\), mapping it to a fixed point in the new coordinate system.
+
+\section*{Step 1: Landau Transformation}
+To convert the free boundary problem
+\[S = S_f(\tau)\]
+into one with a fixed boundary, we apply the Landau transformation. We introduce the new variable
+\[x = \frac{\ln S - \ln S_f(\tau)}{\ln S_f(\tau)}.
+\]
+
+The relationship between \(S\) and \(x\):
+\begin{itemize}
+  \item When \(S = S_f(\tau)\), then \(x = 0.\)
+  \item When \(S \to \infty\), then \(x \to \infty.\)
+\end{itemize}
+
+The inverse transformation is
+\[
+\ln S = \ln S_f(\tau)\,(1 + x),
+\quad
+S = [S_f(\tau)]^{1 + x}.
+\]
+
+Define the new function
+\[
+\tilde V(x,\tau) = V\bigl(S(x,\tau),\tau\bigr)
+= V\bigl([S_f(\tau)]^{1 + x}, \tau\bigr).
+\]
+
+\section*{Step 2: Transformation of Derivatives}
+We express the derivatives
+\(\partial_\tau V\), \(\partial_S V\), and \(\partial^2_S V\)
+in terms of \(\tilde V\), \(x\), and \(\tau\).
+
+\paragraph{Time derivative:}
+\[
+\frac{\partial V}{\partial \tau}
+= \frac{\partial \tilde V}{\partial \tau}
++ \frac{\partial \tilde V}{\partial x}\frac{\partial x}{\partial \tau},
+\quad
+\frac{\partial x}{\partial \tau}
+= -\frac{1}{S_f}\frac{dS_f}{d\tau}\frac{1 + x}{\ln S_f}
+= -\frac{S_f'}{S_f}\frac{1 + x}{\ln S_f}.
+\]
+
+Thus
+\[
+\frac{\partial V}{\partial \tau}
+= \frac{\partial \tilde V}{\partial \tau}
+- \frac{\partial \tilde V}{\partial x}\frac{S_f'}{S_f}\frac{1 + x}{\ln S_f}.
+\]
+
+\paragraph{First spatial derivative:}
+\[
+\frac{\partial V}{\partial S}
+= \frac{\partial \tilde V}{\partial x}\frac{\partial x}{\partial S},
+\quad
+\frac{\partial x}{\partial S} = \frac{1}{S \ln S_f},
+\]
+so
+\[
+\frac{\partial V}{\partial S}
+= \frac{\partial \tilde V}{\partial x}\frac{1}{S \ln S_f}.
+\]
+
+\paragraph{Second spatial derivative:}
+\[
+\frac{\partial^2 V}{\partial S^2}
+= \frac{\partial}{\partial S}
+\Bigl(\frac{\partial \tilde V}{\partial x}\frac{1}{S \ln S_f}\Bigr)
+= \frac{\partial^2 \tilde V}{\partial x^2}\frac{1}{(S \ln S_f)^2}
+- \frac{\partial \tilde V}{\partial x}\frac{1}{S^2 \ln S_f}.
+\]
+
+\section*{Step 3: Substitution into the PDE}
+Substitute these into the original equation:
+\[
+-\frac{\partial V}{\partial \tau}
++ S^2 \frac{\partial^2 V}{\partial S^2}
++ (\gamma - D) S \frac{\partial V}{\partial S}
+- \gamma V = 0.
+\]
+
+Term by term:
+\begin{align*}
+-\frac{\partial V}{\partial \tau}
+&= -\Bigl(\frac{\partial \tilde V}{\partial \tau}
+- \frac{\partial \tilde V}{\partial x}\frac{S_f'}{S_f}\frac{1 + x}{\ln S_f}\Bigr), \\
+S^2 \frac{\partial^2 V}{\partial S^2}
+&= \frac{\partial^2 \tilde V}{\partial x^2}\frac{1}{(\ln S_f)^2}
+- \frac{\partial \tilde V}{\partial x}\frac{1}{\ln S_f}, \\
+(\gamma - D) S \frac{\partial V}{\partial S}
+&= (\gamma - D) \frac{\partial \tilde V}{\partial x}\frac{1}{\ln S_f}, \\
+-\gamma V
+&= -\gamma \tilde V.
+\end{align*}
+
+Combine them to obtain:
+\[
+\frac{\partial^2 \tilde V}{\partial x^2}
++ \Bigl((\gamma - D - 1)\ln S_f + \frac{S_f'}{S_f}(1 + x)\Bigr)
+\frac{\partial \tilde V}{\partial x}
+- (\ln S_f)^2 \frac{\partial \tilde V}{\partial \tau}
+- \gamma (\ln S_f)^2 \tilde V = 0.
+\]
+
+\section*{Step 4: Multiply by \((\ln S_f)^2\)}
+Multiplying the entire PDE by \((\ln S_f)^2\) gives:
+\[
+-(\ln S_f)^2 \frac{\partial \tilde V}{\partial \tau}
++ (\ln S_f)\frac{S_f'}{S_f}(1 + x)\frac{\partial \tilde V}{\partial x}
++ \frac{\partial^2 \tilde V}{\partial x^2}
++ \bigl((\gamma - D) - 1\bigr)\ln S_f\frac{\partial \tilde V}{\partial x}
+- \gamma (\ln S_f)^2 \tilde V = 0.
+\]
+
+\section*{Step 5: First Equation of the Transformed System}
+Recombining the terms in \(\partial_x \tilde V\) yields the same first equation:
+\[
+\frac{\partial^2 \tilde V}{\partial x^2}
++ \Bigl((\gamma - D - 1)\ln S_f + \frac{S_f'}{S_f}(1 + x)\Bigr)
+\frac{\partial \tilde V}{\partial x}
+- (\ln S_f)^2 \frac{\partial \tilde V}{\partial \tau}
+- \gamma (\ln S_f)^2 \tilde V = 0.
+\]
+\section*{Final Transformed System (Equation (7))}
+The complete system after the Landau transformation is:
+\[
+\left\{
+\begin{aligned}
+&\frac{\partial^2 \tilde{V}}{\partial x^2} +
+\Bigl((\gamma - D - 1)\ln S_f + \tfrac{S_f'}{S_f}(1 + x)\Bigr)
+\frac{\partial \tilde{V}}{\partial x}
+- (\ln S_f)^2 \frac{\partial \tilde{V}}{\partial \tau}
+- \gamma (\ln S_f)^2 \tilde{V} = 0,\\
+&\tilde{V}(0, \tau) = 1 - S_f(\tau),\\
+&\frac{\partial \tilde{V}}{\partial x}(0, \tau) = -S_f(\tau)\ln S_f(\tau),\\
+&\lim_{x \to \infty} \tilde{V}(x, \tau) = 0,\\
+&\tilde{V}(x, 0) = \max\bigl(1 - [S_f(0)]^{1 + x}, 0\bigr).
+\end{aligned}
+\right.
+\]
+
+Note that we have replaced the original unknown function \(V(S,\tau)\) with a new unknown \(P\), defined by
+\[
+P(x, \tau) = V\bigl(S(x, S_f(\tau)),\tau\bigr)
+\]
+through the transform in Equation (6). This facilitates the relation
+\(P(0, \tau)\) and \(S_f(\tau)\) on the boundary \(x=0\),
+which is used to design the predictor in our numerical scheme (described in the next Section),and gives us the following system:
+\[
+\begin{array}{l}
+\frac{\partial^2 P}{\partial x^2} + \left( (\gamma - D - 1) \ln S_f + \frac{S_f'}{S_f} (1 + x) \right) \frac{\partial P}{\partial x} - (\ln S_f)^2 \frac{\partial P}{\partial \tau} - \gamma (\ln S_f)^2 P = 0, \\
+P(0, \tau) = 1 - S_f(\tau), \\
+\frac{\partial P}{\partial x}(0, \tau) = - S_f(\tau) \ln S_f(\tau), \\
+\lim_{x \to \infty} P(x, \tau) = 0, \\
+P(x, 0) = \max\left(1 - [S_f(0)]^{1 + x}, 0\right).
+\end{array}
+\right.
+\end{align*}
+\]
+\section*{Step 1: Substitution \(x=0\) into Equation }
+
+Substituting \(x=0\) into the main PDE (7) yields the boundary condition at \(x=0\):
+\[
+\left.\frac{\partial^2 P}{\partial x^2}\right|_{x=0}
++
+\Bigl((\gamma - D - 1)\,\ln S_f(\tau) + \frac{S_f'(\tau)}{S_f(\tau)}\Bigr)\,
+\left.\frac{\partial P}{\partial x}\right|_{x=0}
+-
+\bigl(\ln S_f(\tau)\bigr)^2\,
+\left.\frac{\partial P}{\partial \tau}\right|_{x=0}
+-
+\gamma\,\bigl(\ln S_f(\tau)\bigr)^2\,P(0,\tau)
+=0.
+\]
+
+Simplifying coefficients:
+
+\begin{align*}
+\text{Second term: }
+&\Bigl((\gamma - D - 1)\,\ln S_f(\tau) + \tfrac{S_f'(\tau)}{S_f(\tau)}\Bigr)\,
+\left.\frac{\partial P}{\partial x}\right|_{x=0}, \\[6pt]
+\text{Third term: }
+&-\bigl(\ln S_f(\tau)\bigr)^2\,
+\left.\frac{\partial P}{\partial \tau}\right|_{x=0}, \\[6pt]
+\text{Fourth term: }
+&-\gamma\,\bigl(\ln S_f(\tau)\bigr)^2\,P(0,\tau).
+\end{align*}
+
+Using \(P(0,\tau)=1 - S_f(\tau)\) and 
+\(\bigl.\partial_x P\bigr|_{x=0} = -S_f(\tau)\ln S_f(\tau)\),
+\(\bigl.\partial_\tau P\bigr|_{x=0} = -\tfrac{dS_f}{d\tau}\),
+we obtain the expression for the second derivative at \(x=0\):
+
+\[
+\left.\frac{\partial^2 P}{\partial x^2}\right|_{x=0}
+=
+\Bigl((\gamma - D - 1)\,\ln S_f(\tau) + \tfrac{S_f'(\tau)}{S_f(\tau)}\Bigr)\,
+S_f(\tau)\,\ln S_f(\tau)
+-
+\bigl(\ln S_f(\tau)\bigr)^2\,\frac{dS_f(\tau)}{d\tau}
++
+\gamma\,\bigl(\ln S_f(\tau)\bigr)^2\bigl(1 - S_f(\tau)\bigr).
+\]
+\section*{Simplified Boundary Condition at \(x=0\)}
+
+After neglecting small terms \(\ln S_f\) and \(\tfrac{S_f'}{S_f}\), one obtains
+\[
+\left.\frac{\partial^2 P}{\partial x^2}\right|_{x=0}
+\approx
+(D + 1)\,S_f(\tau)\;-\;\gamma,
+\]
+which can be rewritten as
+\[
+\left.\frac{\partial^2 P}{\partial x^2}\right|_{x=0}
+- (D + 1)\,S_f(\tau) + \gamma = 0.
+\]
+\section{Computational Domain Truncation and Discretization}
+
+To implement our numerical scheme on a computer, we first truncate the semi-infinite domain $x \in [S_f, \infty)$ to a finite domain $x \in [0, x_{\text{max}}]$. Following the estimate by Willmott et al.~\cite{Willmott}, we set $x_{\text{max}} = \ln(5)$, ensuring that the underlying asset price is approximately five times the optimal exercise price. This choice provides a safety margin, as the upper bound $S_{\text{max}}$ typically only needs to be three to four times the strike price.
+
+The computational domain is discretized using uniformly spaced grids: $M+1$ grids in the $x$-direction and $N+1$ grids in the $s$-direction, where $M$ and $N$ represent the number of steps in each direction, respectively. For clarity, we define the step lengths as:
+\[
+\Delta x = \frac{x_{\text{max}}}{M} \quad \text{and} \quad \Delta s = \frac{s_{\text{exp}}}{N},
+\]
+where $s_{\text{exp}}$ is the normalized tenor of the contract, given by $s_{\text{exp}} = \frac{T \sigma^2}{2}$. Here, $T$ is the time to maturity, and $\sigma^2$ is the variance of the underlying asset. The value of the unknown function $P$ at a grid point is denoted by $P^n_m$, where the superscript $n$ indicates the $n$-th time step and the subscript $m$ represents the $m$-th grid point in the log-transformed asset price.
+
+\section{Boundary Condition Derivation}
+
+To facilitate numerical computation, we derive an additional boundary condition for our predictor-corrector scheme. This condition is not independent of the boundary conditions in Eq.~(7) but is derived using the PDE in Eq.~(7) and the existing boundary conditions. 
+
+First, we differentiate the first boundary condition in Eq.~(7) with respect to $s$, yielding:
+\[
+\frac{\partial P}{\partial s}(0, s) = \frac{dS_f(s)}{ds}.
+\]
+This result is consistent with the condition $\frac{\partial V}{\partial s}(S_f(s), s) = 0$ presented in Bunch and Johnson~\cite{BunchJohnson}.
+
+Next, evaluating the PDE in Eq.~(7) at $x = 0$ and applying Eq.~(9) along with the second boundary condition in Eq.~(7), we obtain:
+\[
+\left. \frac{\partial^2 P}{\partial x^2} \right|_{x=0} - (D + 1)S_f(s) + c = 0, \quad \text{for } s > 0.
+\]
+This equation establishes a relationship between the put option price and the optimal exercise price at any time except on the expiry date. It is particularly useful for eliminating the value of the unknown function at fictitious grid points near the boundary $x = 0$ when using a second-order central difference scheme. The exclusion of $s = 0$ is due to the singular behavior of the Black-Scholes PDE at expiry, as noted by Barles et al.~\cite{Barles}.
+\section{Boundary Condition Derivation}
+
+We aim to eliminate the fictitious value $P_{-1}^{n+1}$ (which lies outside the boundary $x=0$) and express $P_1^{n+1}$ in terms of $S_f^{n+1}$.
+
+\subsection{Initial Conditions}
+The finite difference equation at the boundary:
+\begin{equation}
+\frac{P_1^{n+1} - 2P_0^{n+1} + P_{-1}^{n+1}}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0.
+\end{equation}
+
+Boundary conditions:
+\begin{equation}
+\left\{
+\begin{array}{l}
+P_0^{n+1} = 1 - S_f^{n+1}, \\
+\frac{P_1^{n+1} - P_{-1}^{n+1}}{2\Delta x} = -S_f^{n+1}, \\
+P_M^{n+1} = 0, \\
+P_m^0 = 0.
+\end{array}
+\right.
+\end{equation}
+
+\subsection{Step 1: Using the Second Boundary Condition}
+From the second condition in (2):
+\begin{equation}
+\frac{P_1^{n+1} - P_{-1}^{n+1}}{2\Delta x} = -S_f^{n+1}.
+\end{equation}
+Multiply by $2\Delta x$:
+\begin{equation}
+P_1^{n+1} - P_{-1}^{n+1} = -2\Delta x \cdot S_f^{n+1}.
+\end{equation}
+Solve for $P_{-1}^{n+1}$:
+\begin{equation}
+P_{-1}^{n+1} = P_1^{n+1} + 2\Delta x \cdot S_f^{n+1}.
+\end{equation}
+
+\subsection{Step 2: Substitution into Equation (1)}
+Substitute (5) into (1):
+\begin{equation}
+\frac{P_1^{n+1} - 2P_0^{n+1} + (P_1^{n+1} + 2\Delta x \cdot S_f^{n+1})}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0.
+\end{equation}
+Simplify numerator:
+\begin{equation}
+2P_1^{n+1} - 2P_0^{n+1} + 2\Delta x \cdot S_f^{n+1}.
+\end{equation}
+Thus:
+\begin{equation}
+\frac{2(P_1^{n+1} - P_0^{n+1} + \Delta x \cdot S_f^{n+1})}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0.
+\end{equation}
+
+\subsection{Step 3: Applying the First Boundary Condition}
+From the first condition in (2):
+\begin{equation}
+P_0^{n+1} = 1 - S_f^{n+1}.
+\end{equation}
+Substitute into (8):
+\begin{equation}
+\frac{2(P_1^{n+1} - (1 - S_f^{n+1}) + \Delta x \cdot S_f^{n+1})}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0.
+\end{equation}
+Simplify:
+\begin{equation}
+P_1^{n+1} - 1 + S_f^{n+1}(1 + \Delta x).
+\end{equation}
+Thus:
+\begin{equation}
+\frac{2(P_1^{n+1} - 1 + S_f^{n+1}(1 + \Delta x))}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0.
+\end{equation}
+
+\subsection{Step 4: Final Simplification}
+Multiply by $\Delta x^2/2$:
+\begin{equation}
+P_1^{n+1} - 1 + S_f^{n+1}(1 + \Delta x) - \frac{\Delta x^2}{2}[(D + 1)S_f^{n+1} - \gamma] = 0.
+\end{equation}
+Solve for $P_1^{n+1}$:
+\begin{equation}
+P_1^{n+1} = 1 - \gamma\frac{\Delta x^2}{2} + S_f^{n+1}\left[-1 - \Delta x + \frac{\Delta x^2}{2}(D + 1)\right].
+\end{equation}
+
+\subsection{Step 5: Coefficient Definitions}
+Introduce coefficients:
+\begin{align}
+\alpha &= 1 - \frac{\Delta x^2}{2}\gamma, \\
+\beta &= 1 + \Delta x + \frac{\Delta x^2}{2}(D + 1).
+\end{align}
+Final expression:
+\begin{equation}
+P_1^{n+1} = \alpha - \beta S_f^{n+1}.
+\end{equation}
+
+\section{PDE Discretization and Predictor Scheme}
+
+\subsection{Original PDE}
+The partial differential equation from equation (7) is:
+\begin{equation}
+\frac{\partial^2 P}{\partial x^2} + \left( (\gamma - D - 1)  + \frac{S_f'}{S_f} (1 + x) \right) \frac{\partial P}{\partial x} -  \frac{\partial P}{\partial \tau} - \gamma  P = 0.
+\end{equation}
+
+\subsection{Explicit Euler Predictor Scheme}
+We apply the explicit Euler scheme to predict $\hat{S}_f^{n+1}$. The discretized equation is:
+\begin{equation}
+\frac{\hat{P}_1^{n+1} - P_1^n}{\Delta \tau} = \frac{P_2^n - 2P_1^n + P_0^n}{\Delta x^2} + (\gamma - D - 1) \frac{P_2^n - P_0^n}{2\Delta x} + \gamma P_1^n - \frac{P_2^n - P_0^n}{2\Delta x} \cdot \frac{\hat{S}_f^{n+1} - S_f^n}{\Delta \tau}.
+\end{equation}
+
+\subsection{Term Definitions}
+The C-like code defines the terms as:
+\begin{align}
+C &= \frac{P_2^n - 2P_1^n + P_0^n}{\Delta x^2}, \\
+\text{termD} &= (\gamma - D - 1) \frac{P_2^n - P_0^n}{2\Delta x}, \\
+E &= \gamma P_1^n, \\
+F &= \frac{P_2^n - P_0^n}{2\Delta x S_f^n}.
+\end{align}
+
+The predictor for $S_f^{n+1}$ is then:
+\begin{equation}
+\hat{S}_f^{n+1} = \frac{\alpha - P_1^n + F \cdot S_f^n - (C + \text{termD} - E) \cdot \Delta \tau}{F + \beta},
+\end{equation}
+where $\alpha$ and $\beta$ are from equation (13):
+\begin{equation}
+\alpha = 1 + \frac{\gamma}{2} \Delta x^2, \quad \beta = 1 + \Delta x + \frac{D + 1}{2} \Delta x^2.
+\end{equation}
+
+\subsection{Derivation Steps}
+
+\subsubsection{Step 1: Discretization at $x_1 = \Delta x$}
+The time derivative approximation:
+\begin{equation}
+\frac{\partial P}{\partial \tau} \big|_{x_1, \tau_n} \approx \frac{\hat{P}_1^{n+1} - P_1^n}{\Delta \tau}.
+\end{equation}
+
+Second derivative approximation:
+\begin{equation}
+\frac{\partial^2 P}{\partial x^2} \big|_{x_1} \approx \frac{P_2^n - 2P_1^n + P_0^n}{\Delta x^2}.
+\end{equation}
+
+First derivative approximation:
+\begin{equation}
+\frac{\partial P}{\partial x} \big|_{x_1} \approx \frac{P_2^n - P_0^n}{2\Delta x}.
+\end{equation}
+
+\subsubsection{Step 2: Boundary Movement Term}
+The boundary movement term approximation:
+\begin{equation}
+\frac{S_f'}{S_f} \approx \frac{\hat{S}_f^{n+1} - S_f^n}{\Delta \tau S_f^n}.
+\end{equation}
+
+\subsubsection{Step 3: Reaction Term}
+The reaction term approximation:
+\begin{equation}
+-\gamma (\ln S_f)^2 P_1^n \approx -\gamma P_1^n.
+\end{equation}
+
+\subsubsection{Step 4: Combined Discretized Equation}
+Substituting all approximations into the PDE:
+\begin{equation}
+\frac{\hat{P}_1^{n+1} - P_1^n}{\Delta \tau} = C + \text{termD} - E - F \cdot (\hat{S}_f^{n+1} - S_f^n).
+\end{equation}
+
+\subsubsection{Step 5: Coupling with Boundary Condition}
+Using the boundary condition relation:
+\begin{equation}
+\hat{P}_1^{n+1} = \alpha - \beta \hat{S}_f^{n+1}.
+\end{equation}
+
+Equating the two expressions for $\hat{P}_1^{n+1}$:
+\begin{equation}
+\alpha - \beta \hat{S}_f^{n+1} = P_1^n + \Delta \tau (C + \text{termD} - E) - \Delta \tau F \hat{S}_f^{n+1} + \Delta \tau F S_f^n.
+\end{equation}
+
+\subsubsection{Step 6: Solving for $\hat{S}_f^{n+1}$}
+Rearranging terms:
+\begin{equation}
+\hat{S}_f^{n+1} = \frac{\alpha - P_1^n + \Delta \tau F S_f^n - \Delta \tau (C + \text{termD} - E)}{\Delta \tau F + \beta}.
+\end{equation}
+
+This matches the form given in the code implementation.
+\section{Crank-Nicolson Corrector Scheme}
+
+\subsection{Original PDE}
+The partial differential equation from equation is:
+\begin{equation}
+\frac{\partial^2 P}{\partial x^2} + \left( (\gamma - D - 1) \ln S_f + \frac{S_f'}{S_f} (1 + x) \right) \frac{\partial P}{\partial x} - (\ln S_f)^2 \frac{\partial P}{\partial \tau} - \gamma (\ln S_f)^2 P = 0.
+\end{equation}
+
+\subsection{Crank-Nicolson Discretization}
+For the corrector step, we apply the Crank-Nicolson scheme to a linearized version of the PDE. The discretized equation is:
+
+\begin{equation}
+\begin{aligned}
+&\frac{P_{m}^{n+1}-P_{m}^{n}}{\Delta\tau} - \frac{P_{m+1}^{n+1}-2P_{m}^{n+1}+P_{m-1}^{n+1}}{2\Delta x^2} + P_{m+1}^{n} - 2P_{m}^{n} + P_{m-1}^{n} \\
+&- (\gamma - D - 1) \frac{P_{m+1}^{n+1}-P_{m-1}^{n+1}+P_{m+1}^{n}-P_{m-1}^{n}}{4\Delta x} + \gamma \frac{P_{m}^{n+1}+P_{m}^{n}}{2} \\
+&= \frac{P_{m+1}^{n+1}-P_{m-1}^{n+1}+P_{m+1}^{n}-P_{m-1}^{n}}{4\Delta x} \frac{2}{\tilde{S}_{f}^{n+1}+\tilde{S}_{f}^{n}} \frac{\tilde{S}_{f}^{n+1}-\tilde{S}_{f}^{n}}{\Delta\tau}.
+\end{aligned}
+\end{equation}
+
+\subsection{Derivation of Discretized Terms}
+
+\subsubsection{Time Derivative}
+Using central difference approximation:
+\begin{equation}
+\frac{\partial P}{\partial \tau} \big|_{x_m, \tau_{n+1/2}} \approx \frac{P_m^{n+1} - P_m^n}{\Delta \tau}.
+\end{equation}
+
+\subsubsection{Second Spatial Derivative}
+Crank-Nicolson average of the second derivative:
+\begin{equation}
+\frac{\partial^2 P}{\partial x^2} \big|_{x_m, \tau_{n+1/2}} \approx \frac{1}{2}\left(\frac{P_{m+1}^{n+1} - 2P_m^{n+1} + P_{m-1}^{n+1}}{\Delta x^2} + \frac{P_{m+1}^n - 2P_m^n + P_{m-1}^n}{\Delta x^2}\right).
+\end{equation}
+
+\subsubsection{First Spatial Derivative}
+Crank-Nicolson average of the first derivative:
+\begin{equation}
+\frac{\partial P}{\partial x} \big|_{x_m, \tau_{n+1/2}} \approx \frac{1}{2}\left(\frac{P_{m+1}^{n+1} - P_{m-1}^{n+1}}{2\Delta x} + \frac{P_{m+1}^n - P_{m-1}^n}{2\Delta x}\right).
+\end{equation}
+
+\subsubsection{Reaction Term}
+Linearized approximation:
+\begin{equation}
+-\gamma (\ln S_f)^2 P \big|_{x_m, \tau_{n+1/2}} \approx -\gamma \frac{P_m^{n+1} + P_m^n}{2}.
+\end{equation}
+
+\subsection{Linearization Approach}
+The scheme uses:
+\begin{itemize}
+\item Values at $n+1$ for implicit treatment of diffusion terms
+\item Linearization of coefficients using predictor values
+\item Second-order accurate Crank-Nicolson averaging
+\end{itemize}
+
+\subsection{Matrix Formulation}
+The discretized equation can be written in matrix form as:
+\begin{equation}
+A\bm{P}_{m}^{n+1} = B\bm{P}_{m}^{n} + \bm{e}
+\end{equation}
+where:
+\begin{itemize}
+\item $\mathbf{A}$ is a tridiagonal matrix containing $n+1$ terms
+\item $\mathbf{B}$ contains the explicit $n$ terms
+\item $\mathbf{b}$ contains boundary conditions
+\end{itemize}
+
+
+with
+
+\begin{align}
+\bm{P}_{m}^{n+1} &= \left( P_{1}^{n+1}, P_{2}^{n+1}, \ldots, P_{M-1}^{n+1} \right)^{T}, \\
+\bm{P}_{m}^{n} &= \left( P_{1}^{n}, P_{2}^{n}, \ldots, P_{M-1}^{n} \right)^{T}, \\
+\bm{e} &= \left( a \left( P_{0}^{n} + \hat{P}_{0}^{n+1} \right), 0, \ldots, 0, c \left( P_{M}^{n} + P_{M}^{n+1} \right) \right)^{T}
+\end{align}
+
+and
+
+\begin{equation}
+A = 
+\begin{bmatrix}
+b & -c & 0 & 0 & 0 & \cdots & 0 \\
+-a & b & -c & 0 & 0 & \cdots & 0 \\
+0 & -a & b & -c & 0 & \cdots & 0 \\
+0 & \ddots & \ddots & \ddots & \ddots & \ddots & 0 \\
+\vdots & \ddots & \ddots & -a & b & -c & 0 \\
+0 & \cdots & \cdots & \cdots & -a & b & -c \\
+0 & \cdots & \cdots & \cdots & 0 & -a & b
+\end{bmatrix},
+\quad B = 
+\begin{bmatrix}
+b' & c & 0 & 0 & 0 & \cdots & 0 \\
+a & b' & c & 0 & 0 & \cdots & 0 \\
+0 & a & b' & c & 0 & \cdots & 0 \\
+0 & \ddots & \ddots & \ddots & \ddots & \ddots & 0 \\
+\vdots & \ddots & \ddots & a & b' & c & 0 \\
+0 & \cdots & \cdots & a & b' & c \\
+0 & \cdots & \cdots & 0 & a & b'
+\end{bmatrix}.
+\end{equation}
+
+The coefficients in the matrices are:
+
+\begin{equation}
+\begin{cases}
+a = \frac{\Delta t}{2 \Delta x^{2}} - \frac{\gamma-D-1}{4} \frac{\Delta t}{\Delta x} - \frac{1}{2 \Delta x} \frac{S_{f}^{n+1}-S_{f}^{n}}{S_{f}^{n+1}+S_{f}^{n}}, \\
+b = 1 + \frac{\Delta t}{\Delta x^{2}} + \frac{\gamma}{2} \Delta t, \\
+b' = 1 - \frac{\Delta t}{\Delta x^{2}} - \frac{\gamma}{2} \Delta t, \\
+c = \frac{\Delta t}{2 \Delta x^{2}} + \frac{\gamma-D-1}{4} \frac{\Delta t}{\Delta x} + \frac{1}{2 \Delta x} \frac{S_{f}^{n+1}-S_{f}^{n}}{S_{f}^{n+1}+S_{f}^{n}}.
+\end{cases}
+\end{equation}
+
+
+
+\subsection{Boundary Conditions}
+The boundary conditions are incorporated as:
+\begin{align}
+P_0^{n+1} &= 1 - S_f^{n+1} \\
+\frac{P_1^{n+1} - P_{-1}^{n+1}}{2\Delta x} &= -S_f^{n+1} \\
+P_M^{n+1} &= 0
+\end{align}
+
+\section*{Predictor-Corrector Algorithm}
+
+Given the known values at time step $n$:
+\begin{itemize}
+    \item $P_m^n$ (pressure/potential field)
+    \item $S_f^n$ (auxiliary parameter)
+\end{itemize}
+
+The computation proceeds as follows:
+
+\begin{enumerate}
+    \item \textbf{Predictor Step:}
+    \begin{itemize}
+        \item Use the \textbf{Predictor Equation (37)} combined with \textbf{Equation (35)} to compute an initial estimate:
+        \[ \tilde{S}_f^{n+1} \quad \text{(predicted value at next time step)} \]
+    \end{itemize}
+    
+    \item \textbf{Corrector Step:}
+    \begin{itemize}
+        \item Use the \textbf{Corrector Equation (54)} with the predicted $\tilde{S}_f^{n+1}$ to calculate the corrected pressure field:
+        \[ P_m^{n+1} \quad \text{(corrected pressure field)} \]
+    \end{itemize}
+    
+    \item \textbf{Final Calculation:}
+    \begin{itemize}
+        \item Recompute using \textbf{Equation (35)} with the corrected $P_m^{n+1}$ to obtain the final value:
+        \[ S_f^{n+1} \quad \text{(final auxiliary parameter)} \]
+    \end{itemize}
+    
+    \item \textbf{Time Step Advancement:}
+    \begin{itemize}
+        \item Update variables: $P_m^n \leftarrow P_m^{n+1}$, $S_f^n \leftarrow S_f^{n+1}$
+        \item Repeat the process for time step $n+2$
+    \end{itemize}
+\end{enumerate}
+
+\subsection*{Key Features}
+\begin{itemize}
+    \item The \textbf{Predictor} provides a first approximation
+    \item The \textbf{Corrector} refines the solution using the predicted value
+    \item \textbf{Equation (12)} is used twice to ensure consistency between $S_f$ and $P_m$
+\end{itemize}
+
+This method is commonly used in numerical solutions of differential equations where a balance between accuracy and computational efficiency is required.
+
+\section{Code Explanation}
+\label{sec:code}
+
+This section presents a comprehensive walkthrough of our MATLAB implementation of the predictor-corrector scheme for pricing American put options, based on the numerical framework developed by Zhu (2011). Below, we clarify the objectives, methodology, and key components of the implementation.
+
+% ======================================
+\subsection{Initialization and Parameters}
+\label{subsec:init}
+
+\begin{lstlisting}[language=Matlab,caption={Parameter setup},label=code:params]
+T = 1;          % Time to maturity (years)
+sigma = 0.3;    % Volatility
+X = 100;        % Strike price
+r = 0.1;        % Risk-free rate
+D0 = 0;         % Dividend yield
+
+% Normalized parameters
+gamma = 2*r/sigma^2;
+D = 2*D0/sigma^2;
+\end{lstlisting}
+To facilitate the numerical solution of the differential system, we introduce dimensionless variables through normalization:
+    \begin{align*}
+        \gamma &= \frac{2r}{\sigma^2} \\
+        D &= \frac{2D_0}{\sigma^2}
+    \end{align*}
+where $r$ represents the risk-free interest rate, $\sigma$ denotes the volatility, and $D_0$ is the original dividend yield parameter. This non-dimensionalization simplifies the system while preserving its fundamental characteristics.
+% ======================================
+\subsection{Grid Construction}
+\label{subsec:grid}
+\begin{lstlisting}[language=Matlab,caption={Spatial/temporal discretization},label=code:grid]
+x_max = log(5); 
+dx = x_max/M;       
+tau_exp = T * sigma^2 / 2;  
+dtau = tau_exp/N;   
+\end{lstlisting}
+\textbf{Implementation Notes:}  
+\begin{itemize}
+    \item Based on Willmott et al.'s estimate, the upper bound \( S_{\text{max}} \) does not need to be excessively large—typically around three to four times the strike price. To ensure this condition is met, we set \( x_{\text{max}} = \log(5) \), corresponding to an underlying asset price approximately five times the optimal exercise price.
+    \item The computational domain is discretized using uniform grids, with $M+1$ nodes in the $x$-direction and $N+1$ nodes in the $s$-direction (where $M$ and $N$ represent the number of intervals in each respective direction). For clarity in notation, we define the spatial step sizes as:
+    \begin{align*}
+        \Delta x &= \frac{x_{\text{max}}}{M} \\
+        \Delta s &= \frac{s_{\text{exp}}}{N}
+    \end{align*}
+    where $s_{\text{exp}} = T\sigma^2/2$ represents the normalized contract tenor relative to half the variance of the underlying asset. The numerical solution at each grid point is denoted by $P^n_m$, where the superscript $n$ indicates the temporal discretization step and the subscript $m$ identifies the spatial grid point in the log-transformed asset domain.
+\end{itemize}
+\subsection{Initialization of Numerical Arrays}
+The implementation begins with initialization of the solution matrices:
+
+\begin{lstlisting}[language=Matlab, caption=Array initialization, label=code:init]
+P = zeros(M+1, N+1);  % Solution matrix for option prices
+S_f = zeros(N+1,1);    % Free boundary vector
+S_f(1) = 1;            % Initial condition for free boundary
+\end{lstlisting}
+
+where:
+\begin{itemize}
+    \item $P$ is the $(M+1)\times(N+1)$ solution matrix storing option prices at each:
+    \begin{itemize}
+        \item Spatial grid point (rows, $m = 0,...,M$)
+        \item Temporal level (columns, $n = 0,...,N$)
+    \end{itemize}
+    \item $S_f$ contains the free boundary values at each time step
+    \item $S_f(1)=1$ sets the initial condition at $n=0$
+\end{itemize}
+\subsection{Coefficient Computation}
+The coefficients $\alpha$ and $\beta$ implement the finite difference scheme's discretization weights:
+
+\begin{lstlisting}[language=Matlab]
+alpha = 1 + (gamma/2)*dx^2;       % Curvature term
+beta = 1 + dx + (D + 1)*dx^2/2;   % Combined drift and boundary effects
+\end{lstlisting}
+
+These derive from the paper's discretization where:
+\begin{itemize}
+\item $\alpha = 1 + \frac{\gamma}{2}\Delta x^2$ handles second-order price sensitivity (gamma)
+\item $\beta$ combines:
+  \begin{itemize}
+  \item $1$: Base value
+  \item $\Delta x$: First-order price change (drift)
+  \item $\frac{D+1}{2}\Delta x^2$: Free boundary coupling ($D$) and convexity adjustment
+  \end{itemize}
+\end{itemize}
+The coefficients link the free boundary $S_f$ to adjacent node values in the predictor-corrector scheme.
+% ======================================
+\subsection{Predictor-Corrector Scheme}
+The implementation follows the two-phase approach:
+
+\begin{enumerate}
+    \item \textbf{Predictor}: Explicit Euler scheme for boundary estimation
+    \item \textbf{Corrector}: Crank-Nicolson scheme for price calculation
+\end{enumerate}
+
+\subsection{Predictor Step: Explicit Euler Scheme}
+\label{subsec:predictor}
+
+The predictor step estimates the optimal exercise boundary \(S_f(\tau)\) using an explicit Euler discretization of the transformed PDE. The implementation computes spatial derivatives and linearizes the nonlinear term for efficient boundary estimation.
+
+\subsubsection{Spatial Derivatives Computation}
+Central finite differences approximate the required derivatives:
+
+\begin{lstlisting}[language=Matlab,caption={Derivative calculations},label=code:derivs]
+% Second derivative (d²P/dx²)
+C = (P_curr(3) - 2*P_curr(2) + P_curr(1))/dx^2; 
+
+% First derivative (dP/dx) with convection coefficient
+termD = (gamma - D - 1)*(P_curr(3) - P_curr(1))/(2*dx); 
+\end{lstlisting}
+
+These implement the discrete operators:
+\begin{align}
+\frac{\partial^2 P}{\partial x^2} &\approx \frac{P_{m+1}^n - 2P_m^n + P_{m-1}^n}{\Delta x^2} \label{eq:diffusion}\\
+\frac{\partial P}{\partial x} &\approx \frac{P_{m+1}^n - P_{m-1}^n}{2\Delta x} \label{eq:convection}
+\end{align}
+
+\subsubsection{Linear and Nonlinear Terms}
+The PDE's linear reaction term and nonlinear boundary term are computed as:
+
+\begin{lstlisting}[language=Matlab,caption={Term evaluations},label=code:terms]
+E = gamma * P_curr(2);    
+F = (P_curr(3) - P_curr(1))/(2*dx*S_f(n)); % Nonlinear coefficient
+\end{lstlisting}
+
+Corresponding to:
+\begin{equation}
+\gamma P + \underbrace{\frac{\partial P}{\partial x}\frac{1}{S_f}\frac{dS_f}{d\tau}}_{\text{Linearized as } F \cdot \Delta S_f/\Delta\tau} \label{eq:pde_terms}
+\end{equation}
+
+\subsubsection{Boundary Estimation}
+The boundary prediction combines the discretized PDE:
+
+\begin{lstlisting}[language=Matlab,caption={Boundary predictor},label=code:boundary_pred]
+S_f_hat = (alpha - P_curr(2) + F*S_f(n) - (C + termD - E)*dtau)/(F + beta);
+\end{lstlisting}
+
+Derived from:
+\begin{equation}
+S_f^{n+1} = \frac{\alpha - P_1^n + F S_f^n - (\mathcal{L}P^n)\Delta\tau}{F + \beta} \label{eq:boundary_update}
+\end{equation}
+where \(\mathcal{L}P^n\) represents the discretized PDE operator from \eqref{eq:diffusion}-\eqref{eq:pde_terms}.
+
+\subsubsection{Stability Considerations}
+The explicit scheme requires:
+\begin{equation}
+\frac{\Delta\tau}{\Delta x^2} \leq 1 \quad \text{(CFL condition)} \label{eq:cfl}
+\end{equation}
+The nonlinear term treatment ensures:
+\begin{itemize}
+\item First-order temporal accuracy
+\item Linear computational complexity
+\item Conditional stability maintained by \eqref{eq:cfl}
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Predictor step variable mapping}
+\begin{tabular}{lll}
+\hline
+Code Variable & Mathematical Equivalent\\ \hline
+\texttt{C} & \(\frac{\partial^2 P}{\partial x^2}\) \\
+\texttt{termD} & \((\gamma-D-1)\frac{\partial P}{\partial x}\) \\
+\texttt{E} & \(\gamma P\) \\
+\texttt{F} & \(\frac{\partial P}{\partial x}\frac{1}{S_f}\)\\
+\texttt{S\_f\_hat} & \(S_f^{n+1}\)\\ \hline
+\end{tabular}
+\end{table}
+\subsection{Corrector Step Implementation}
+\label{subsec:corrector}
+
+The corrector step refines the solution using a Crank-Nicolson discretization of the linearized PDE system from. This implicit scheme provides second-order temporal accuracy while maintaining numerical stability.
+
+\subsubsection{Matrix Formulation}
+The discrete system is expressed as:
+
+\begin{equation}
+AP_{m}^{n+1} = BP_{m}^{n} + e
+\label{eq:matrix_system}
+\end{equation}
+
+where:
+\begin{itemize}
+\item $P_{m}^{n+1} = (P_{1}^{n+1}, \ldots, P_{M-1}^{n+1})^{T}$ is the unknown vector at time $n+1$
+\item $P_{m}^{n} = (P_{1}^{n}, \ldots, P_{M-1}^{n})^{T}$ contains known values at time $n$
+\item $e$ incorporates boundary conditions
+\end{itemize}
+
+\subsubsection{Matrix Construction}
+The tridiagonal matrices $A$ and $B$ are built using coefficients
+\begin{lstlisting}[language=Matlab,caption={Matrix coefficient computation},label=code:coefficients]
+% Spatial and temporal weights
+a = (dtau/(2*dx^2)) - ((gamma-D-1)*dtau)/(4*dx) - (dSf)/(2*dx*Sf_avg);
+b = 1 + dtau/dx^2 + (gamma*dtau)/2;
+b_prime = 1 - dtau/dx^2 - (gamma*dtau)/2;
+c = (dtau/(2*dx^2)) + ((gamma-D-1)*dtau)/(4*dx) + (dSf)/(2*dx*Sf_avg);
+\end{lstlisting}
+
+These coefficients correspond to:
+\begin{align}
+a &= \frac{\Delta\tau}{2\Delta x^2} - \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} - \frac{1}{2\Delta x}\frac{\Delta S_f}{S_f^{avg}} \label{eq:coeff_a}\\
+c &= \frac{\Delta\tau}{2\Delta x^2} + \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} + \frac{1}{2\Delta x}\frac{\Delta S_f}{S_f^{avg}} \label{eq:coeff_c}
+\end{align}
+
+where $S_f^{avg} = (S_f^{n+1} + S_f^n)/2$ and $\Delta S_f = S_f^{n+1} - S_f^n$.
+\subsubsection{System Solution}
+The linear system is solved efficiently using MATLAB's sparse solver:
+
+\begin{lstlisting}[language=Matlab,caption={Linear system solution}]
+% Construct tridiagonal matrices
+A = spdiags([-a*ones(M-1,1), b*ones(M-1,1), -c*ones(M-1,1)], -1:1, M-1, M-1);
+B = spdiags([a*ones(M-1,1), b_prime*ones(M-1,1), c*ones(M-1,1)], -1:1, M-1, M-1);
+
+% Solve system
+P_next_inner = A \ (B*P(2:M,n) + e);
+\end{lstlisting}
+
+\subsubsection{Convergence Analysis}
+The scheme achieves:
+\begin{itemize}
+\item \textbf{Second-order accuracy} in space ($O(\Delta x^2)$) via central differences
+\item \textbf{Unconditional stability} through the Crank-Nicolson method
+\item \textbf{Optimal complexity} ($O(M)$ operations) using tridiagonal solver
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Corrector step component summary}
+\begin{tabular}{lll}
+\hline
+Component & Mathematical Basis \\ \hline
+Matrix $A$ & Implicit terms  \\
+Matrix $B$ & Explicit terms \\
+Vector $e$ & Boundary conditions  \\
+Solver & Tridiagonal algorithm \\ \hline
+\end{tabular}
+\end{table}
+\subsubsection{Linear System Solution}
+The system is solved using the MATLAB backslash operator:
+
+\begin{lstlisting}[language=Matlab,caption={System solution}]
+P_next_inner = A \ (B*P(2:M,n) + e);  
+\end{lstlisting}
+
+\subsubsection{Coefficient Derivation}
+The matrix coefficients are derived from:
+
+\begin{align*}
+a &= \frac{\Delta\tau}{2\Delta x^2} - \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} - \frac{1}{2\Delta x}\frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n} \\
+b &= 1 + \frac{\Delta\tau}{\Delta x^2} + \frac{\gamma}{2}\Delta\tau \\
+b' &= 1 - \frac{\Delta\tau}{\Delta x^2} - \frac{\gamma}{2}\Delta\tau \\
+c &= \frac{\Delta\tau}{2\Delta x^2} + \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} + \frac{1}{2\Delta x}\frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n}
+\end{align*}
+
+\begin{table}[h]
+\centering
+\caption{Coefficient physical meanings}
+\begin{tabular}{ll}
+\hline
+Coefficient & Physical Meaning \\ \hline
+$a$ & Weighting of lower diagonal terms \\
+$b$ & Main diagonal (diffusion + reaction) \\
+$c$ & Weighting of upper diagonal terms \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{Boundary Conditions}
+Implements conditions:
+\begin{lstlisting}[caption={Boundary condition implementation}]
+% Value-matching condition 
+P(1, n+1) = 1 - S_f(n+1);
+
+% Gamma condition 
+S_f(n+1) = (alpha - P(2,n+1)) / beta;
+\end{lstlisting}
+\end{document}
