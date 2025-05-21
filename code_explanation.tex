@@ -1,0 +1,302 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{listings}
+\usepackage{xcolor} 
+\usepackage{textgreek}
+
+\geometry{a4paper, margin=1in}
+\lstdefinestyle{matlabstyle}{
+    language=Matlab,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny,
+    frame=tb,
+    captionpos=b
+}
+\lstset{style=matlabstyle}
+\title{On the Pricing of American Options Using ADI Schemes and Their Optimal Exercise Boundaries}
+\author{Your Name \\ Astana IT University}
+\date{\today}
+
+\begin{document}
+
+\section{Code Explanation}
+\label{sec:code}
+
+This section presents a comprehensive walkthrough of our MATLAB implementation of the predictor-corrector scheme for pricing American put options, based on the numerical framework developed by Zhu (2011). Below, we clarify the objectives, methodology, and key components of the implementation.
+
+% ======================================
+\subsection{Initialization and Parameters}
+\label{subsec:init}
+
+\begin{lstlisting}[language=Matlab,caption={Parameter setup},label=code:params]
+T = 1;          % Time to maturity (years)
+sigma = 0.3;    % Volatility
+X = 100;        % Strike price
+r = 0.1;        % Risk-free rate
+D0 = 0;         % Dividend yield
+
+% Normalized parameters
+gamma = 2*r/sigma^2;
+D = 2*D0/sigma^2;
+\end{lstlisting}
+To facilitate the numerical solution of the differential system, we introduce dimensionless variables through normalization:
+    \begin{align*}
+        \gamma &= \frac{2r}{\sigma^2} \\
+        D &= \frac{2D_0}{\sigma^2}
+    \end{align*}
+where $r$ represents the risk-free interest rate, $\sigma$ denotes the volatility, and $D_0$ is the original dividend yield parameter. This non-dimensionalization simplifies the system while preserving its fundamental characteristics.
+% ======================================
+\subsection{Grid Construction}
+\label{subsec:grid}
+\begin{lstlisting}[language=Matlab,caption={Spatial/temporal discretization},label=code:grid]
+x_max = log(5); 
+dx = x_max/M;       
+tau_exp = T * sigma^2 / 2;  
+dtau = tau_exp/N;   
+\end{lstlisting}
+\textbf{Implementation Notes:}  
+\begin{itemize}
+    \item Based on Willmott et al.'s estimate, the upper bound \( S_{\text{max}} \) does not need to be excessively large—typically around three to four times the strike price. To ensure this condition is met, we set \( x_{\text{max}} = \log(5) \), corresponding to an underlying asset price approximately five times the optimal exercise price.
+    \item The computational domain is discretized using uniform grids, with $M+1$ nodes in the $x$-direction and $N+1$ nodes in the $s$-direction (where $M$ and $N$ represent the number of intervals in each respective direction). For clarity in notation, we define the spatial step sizes as:
+    \begin{align*}
+        \Delta x &= \frac{x_{\text{max}}}{M} \\
+        \Delta s &= \frac{s_{\text{exp}}}{N}
+    \end{align*}
+    where $s_{\text{exp}} = T\sigma^2/2$ represents the normalized contract tenor relative to half the variance of the underlying asset. The numerical solution at each grid point is denoted by $P^n_m$, where the superscript $n$ indicates the temporal discretization step and the subscript $m$ identifies the spatial grid point in the log-transformed asset domain.
+\end{itemize}
+\subsection{Initialization of Numerical Arrays}
+The implementation begins with initialization of the solution matrices:
+
+\begin{lstlisting}[language=Matlab, caption=Array initialization, label=code:init]
+P = zeros(M+1, N+1);  % Solution matrix for option prices
+S_f = zeros(N+1,1);    % Free boundary vector
+S_f(1) = 1;            % Initial condition for free boundary
+\end{lstlisting}
+
+where:
+\begin{itemize}
+    \item $P$ is the $(M+1)\times(N+1)$ solution matrix storing option prices at each:
+    \begin{itemize}
+        \item Spatial grid point (rows, $m = 0,...,M$)
+        \item Temporal level (columns, $n = 0,...,N$)
+    \end{itemize}
+    \item $S_f$ contains the free boundary values at each time step
+    \item $S_f(1)=1$ sets the initial condition at $n=0$
+\end{itemize}
+\subsection{Coefficient Computation}
+The coefficients $\alpha$ and $\beta$ implement the finite difference scheme's discretization weights:
+
+\begin{lstlisting}[language=Matlab]
+alpha = 1 + (gamma/2)*dx^2;       % Curvature term
+beta = 1 + dx + (D + 1)*dx^2/2;   % Combined drift and boundary effects
+\end{lstlisting}
+
+These derive from the paper's discretization where:
+\begin{itemize}
+\item $\alpha = 1 + \frac{\gamma}{2}\Delta x^2$ handles second-order price sensitivity (gamma)
+\item $\beta$ combines:
+  \begin{itemize}
+  \item $1$: Base value
+  \item $\Delta x$: First-order price change (drift)
+  \item $\frac{D+1}{2}\Delta x^2$: Free boundary coupling ($D$) and convexity adjustment
+  \end{itemize}
+\end{itemize}
+The coefficients link the free boundary $S_f$ to adjacent node values in the predictor-corrector scheme.
+% ======================================
+\subsection{Predictor-Corrector Scheme}
+The implementation follows the two-phase approach:
+
+\begin{enumerate}
+    \item \textbf{Predictor}: Explicit Euler scheme for boundary estimation
+    \item \textbf{Corrector}: Crank-Nicolson scheme for price calculation
+\end{enumerate}
+
+\subsection{Predictor Step: Explicit Euler Scheme}
+\label{subsec:predictor}
+
+The predictor step estimates the optimal exercise boundary \(S_f(\tau)\) using an explicit Euler discretization of the transformed PDE. The implementation computes spatial derivatives and linearizes the nonlinear term for efficient boundary estimation.
+
+\subsubsection{Spatial Derivatives Computation}
+Central finite differences approximate the required derivatives:
+
+\begin{lstlisting}[language=Matlab,caption={Derivative calculations},label=code:derivs]
+% Second derivative (d²P/dx²)
+C = (P_curr(3) - 2*P_curr(2) + P_curr(1))/dx^2; 
+
+% First derivative (dP/dx) with convection coefficient
+termD = (gamma - D - 1)*(P_curr(3) - P_curr(1))/(2*dx); 
+\end{lstlisting}
+
+These implement the discrete operators:
+\begin{align}
+\frac{\partial^2 P}{\partial x^2} &\approx \frac{P_{m+1}^n - 2P_m^n + P_{m-1}^n}{\Delta x^2} \label{eq:diffusion}\\
+\frac{\partial P}{\partial x} &\approx \frac{P_{m+1}^n - P_{m-1}^n}{2\Delta x} \label{eq:convection}
+\end{align}
+
+\subsubsection{Linear and Nonlinear Terms}
+The PDE's linear reaction term and nonlinear boundary term are computed as:
+
+\begin{lstlisting}[language=Matlab,caption={Term evaluations},label=code:terms]
+E = gamma * P_curr(2);    
+F = (P_curr(3) - P_curr(1))/(2*dx*S_f(n)); % Nonlinear coefficient
+\end{lstlisting}
+
+Corresponding to:
+\begin{equation}
+\gamma P + \underbrace{\frac{\partial P}{\partial x}\frac{1}{S_f}\frac{dS_f}{d\tau}}_{\text{Linearized as } F \cdot \Delta S_f/\Delta\tau} \label{eq:pde_terms}
+\end{equation}
+
+\subsubsection{Boundary Estimation}
+The boundary prediction combines the discretized PDE:
+
+\begin{lstlisting}[language=Matlab,caption={Boundary predictor},label=code:boundary_pred]
+S_f_hat = (alpha - P_curr(2) + F*S_f(n) - (C + termD - E)*dtau)/(F + beta);
+\end{lstlisting}
+
+Derived from:
+\begin{equation}
+S_f^{n+1} = \frac{\alpha - P_1^n + F S_f^n - (\mathcal{L}P^n)\Delta\tau}{F + \beta} \label{eq:boundary_update}
+\end{equation}
+where \(\mathcal{L}P^n\) represents the discretized PDE operator from \eqref{eq:diffusion}-\eqref{eq:pde_terms}.
+
+\subsubsection{Stability Considerations}
+The explicit scheme requires:
+\begin{equation}
+\frac{\Delta\tau}{\Delta x^2} \leq 1 \quad \text{(CFL condition)} \label{eq:cfl}
+\end{equation}
+The nonlinear term treatment ensures:
+\begin{itemize}
+\item First-order temporal accuracy
+\item Linear computational complexity
+\item Conditional stability maintained by \eqref{eq:cfl}
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Predictor step variable mapping}
+\begin{tabular}{lll}
+\hline
+Code Variable & Mathematical Equivalent\\ \hline
+\texttt{C} & \(\frac{\partial^2 P}{\partial x^2}\) \\
+\texttt{termD} & \((\gamma-D-1)\frac{\partial P}{\partial x}\) \\
+\texttt{E} & \(\gamma P\) \\
+\texttt{F} & \(\frac{\partial P}{\partial x}\frac{1}{S_f}\)\\
+\texttt{S\_f\_hat} & \(S_f^{n+1}\)\\ \hline
+\end{tabular}
+\end{table}
+\subsection{Corrector Step Implementation}
+\label{subsec:corrector}
+
+The corrector step refines the solution using a Crank-Nicolson discretization of the linearized PDE system from. This implicit scheme provides second-order temporal accuracy while maintaining numerical stability.
+
+\subsubsection{Matrix Formulation}
+The discrete system is expressed as:
+
+\begin{equation}
+AP_{m}^{n+1} = BP_{m}^{n} + e
+\label{eq:matrix_system}
+\end{equation}
+
+where:
+\begin{itemize}
+\item $P_{m}^{n+1} = (P_{1}^{n+1}, \ldots, P_{M-1}^{n+1})^{T}$ is the unknown vector at time $n+1$
+\item $P_{m}^{n} = (P_{1}^{n}, \ldots, P_{M-1}^{n})^{T}$ contains known values at time $n$
+\item $e$ incorporates boundary conditions
+\end{itemize}
+
+\subsubsection{Matrix Construction}
+The tridiagonal matrices $A$ and $B$ are built using coefficients
+\begin{lstlisting}[language=Matlab,caption={Matrix coefficient computation},label=code:coefficients]
+% Spatial and temporal weights
+a = (dtau/(2*dx^2)) - ((gamma-D-1)*dtau)/(4*dx) - (dSf)/(2*dx*Sf_avg);
+b = 1 + dtau/dx^2 + (gamma*dtau)/2;
+b_prime = 1 - dtau/dx^2 - (gamma*dtau)/2;
+c = (dtau/(2*dx^2)) + ((gamma-D-1)*dtau)/(4*dx) + (dSf)/(2*dx*Sf_avg);
+\end{lstlisting}
+
+These coefficients correspond to:
+\begin{align}
+a &= \frac{\Delta\tau}{2\Delta x^2} - \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} - \frac{1}{2\Delta x}\frac{\Delta S_f}{S_f^{avg}} \label{eq:coeff_a}\\
+c &= \frac{\Delta\tau}{2\Delta x^2} + \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} + \frac{1}{2\Delta x}\frac{\Delta S_f}{S_f^{avg}} \label{eq:coeff_c}
+\end{align}
+
+where $S_f^{avg} = (S_f^{n+1} + S_f^n)/2$ and $\Delta S_f = S_f^{n+1} - S_f^n$.
+\subsubsection{System Solution}
+The linear system is solved efficiently using MATLAB's sparse solver:
+
+\begin{lstlisting}[language=Matlab,caption={Linear system solution}]
+% Construct tridiagonal matrices
+A = spdiags([-a*ones(M-1,1), b*ones(M-1,1), -c*ones(M-1,1)], -1:1, M-1, M-1);
+B = spdiags([a*ones(M-1,1), b_prime*ones(M-1,1), c*ones(M-1,1)], -1:1, M-1, M-1);
+
+% Solve system
+P_next_inner = A \ (B*P(2:M,n) + e);
+\end{lstlisting}
+
+\subsubsection{Convergence Analysis}
+The scheme achieves:
+\begin{itemize}
+\item \textbf{Second-order accuracy} in space ($O(\Delta x^2)$) via central differences
+\item \textbf{Unconditional stability} through the Crank-Nicolson method
+\item \textbf{Optimal complexity} ($O(M)$ operations) using tridiagonal solver
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Corrector step component summary}
+\begin{tabular}{lll}
+\hline
+Component & Mathematical Basis \\ \hline
+Matrix $A$ & Implicit terms  \\
+Matrix $B$ & Explicit terms \\
+Vector $e$ & Boundary conditions  \\
+Solver & Tridiagonal algorithm \\ \hline
+\end{tabular}
+\end{table}
+\subsubsection{Linear System Solution}
+The system is solved using the MATLAB backslash operator:
+
+\begin{lstlisting}[language=Matlab,caption={System solution}]
+P_next_inner = A \ (B*P(2:M,n) + e);  
+\end{lstlisting}
+
+\subsubsection{Coefficient Derivation}
+The matrix coefficients are derived from:
+
+\begin{align*}
+a &= \frac{\Delta\tau}{2\Delta x^2} - \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} - \frac{1}{2\Delta x}\frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n} \\
+b &= 1 + \frac{\Delta\tau}{\Delta x^2} + \frac{\gamma}{2}\Delta\tau \\
+b' &= 1 - \frac{\Delta\tau}{\Delta x^2} - \frac{\gamma}{2}\Delta\tau \\
+c &= \frac{\Delta\tau}{2\Delta x^2} + \frac{\gamma - D - 1}{4}\frac{\Delta\tau}{\Delta x} + \frac{1}{2\Delta x}\frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n}
+\end{align*}
+
+\begin{table}[h]
+\centering
+\caption{Coefficient physical meanings}
+\begin{tabular}{ll}
+\hline
+Coefficient & Physical Meaning \\ \hline
+$a$ & Weighting of lower diagonal terms \\
+$b$ & Main diagonal (diffusion + reaction) \\
+$c$ & Weighting of upper diagonal terms \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{Boundary Conditions}
+Implements conditions:
+\begin{lstlisting}[caption={Boundary condition implementation}]
+% Value-matching condition 
+P(1, n+1) = 1 - S_f(n+1);
+
+% Gamma condition 
+S_f(n+1) = (alpha - P(2,n+1)) / beta;
+\end{lstlisting}
+\end{document}
