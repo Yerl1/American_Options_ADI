@@ -1,0 +1,181 @@
+\documentclass{beamer}
+
+% Theme and packages
+\usetheme{default}
+\usecolortheme{default}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+% Title slide information
+\title{Pricing American Put Options: Predictor-Corrector FDM}
+\subtitle{Methodology Overview}
+\author{Dilnaz Amanzholova, Dana Akhmetova, Doshanov Erlan, Bakhadir Assemay, Kudaibergen Alnur}
+\date{May 21, 2025}
+
+\begin{document}
+
+% Slide 1: Title Slide
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% Slide 2: Introduction to the Methodology (Expanded)
+\begin{frame}{Methodology Overview}
+    \begin{itemize}
+        \item \textbf{Objective}: Price American put options and determine the optimal exercise boundary \( S_f(t) \).
+        \item \textbf{Approach}: Predictor-corrector finite difference method (FDM) based on Zhu and Zhang (2011).
+        \item \textbf{Key Steps}:
+        \begin{itemize}
+            \item Apply the Landau transform to fix the moving boundary \( S_f(\tau) \).
+            \item Use a two-phase predictor-corrector scheme:
+            \begin{itemize}
+                \item \textbf{Predictor}: Explicit Euler scheme to estimate \( \hat{S}_f^{n+1} \).
+                \item \textbf{Corrector}: Crank-Nicolson scheme to refine \( P_m^{n+1} \) and compute final \( S_f^{n+1} \).
+            \end{itemize}
+            \item Discretize the computational domain and derive boundary conditions.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% Slide 3: Differential System for American Put Options
+\begin{frame}{Differential System}
+    \begin{itemize}
+        \item \textbf{Black-Scholes PDE}:
+        \[
+        \frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + (r - D_0) S \frac{\partial V}{\partial S} - r V = 0
+        \]
+        \item \textbf{Boundary Conditions}:
+        \begin{itemize}
+            \item At \( S = S_f(t) \): \( V(S_f(t), t) = K - S_f(t) \), \( \frac{\partial V}{\partial S}(S_f(t), t) = -1 \)
+            \item As \( S \to \infty \): \( V(S, t) = 0 \)
+            \item At expiry (\( t = T \)): \( V(S, T) = \max(K - S, 0) \)
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% Slide 4: Normalization of Variables
+\begin{frame}{Normalization of Variables}
+    \begin{itemize}
+        \item Introduce dimensionless variables:
+        \[
+        V' = \frac{V}{K}, \quad S' = \frac{S}{K}, \quad \tau = (T - t) \frac{\sigma^2}{2}, \quad \gamma = \frac{2r}{\sigma^2}, \quad D = \frac{2 D_0}{\sigma^2}
+        \]
+        \item Transformed PDE:
+        \[
+        -\frac{\partial V}{\partial \tau} + S^2 \frac{\partial^2 V}{\partial S^2} + (\gamma - D) S \frac{\partial V}{\partial S} - \gamma V = 0
+        \]
+        \item Simplifies the system for numerical solution.
+    \end{itemize}
+\end{frame}
+
+% Slide 5: Landau Transform for the Free Boundary
+\begin{frame}{Landau Transform}
+    \begin{itemize}
+        \item \textbf{Purpose}: Convert the free boundary \( S_f(\tau) \) into a fixed boundary.
+        \item Transformation: \( x = \frac{\ln S - \ln S_f(\tau)}{\ln S_f(\tau)} \)
+        \begin{itemize}
+            \item At \( S = S_f(\tau) \), \( x = 0 \)
+            \item As \( S \to \infty \), \( x \to \infty \)
+        \end{itemize}
+        \item Resulting PDE:
+       \[
+\begin{equation*}
+\begin{split}
+\frac{\partial^2 \tilde{V}}{\partial x^2}
++ \Bigl((\gamma - D - 1)\ln S_f + \tfrac{S_f'}{S_f}(1 + x)\Bigr)\frac{\partial \tilde{V}}{\partial x}
+\quad\\
+- (\ln S_f)^2 \frac{\partial \tilde{V}}{\partial \tau}
+- \gamma (\ln S_f)^2 \tilde{V}
+= 0
+\end{split}
+\end{equation*}
+
+
+    \end{itemize}
+\end{frame}
+
+% Slide 6: Domain Truncation and Discretization
+\begin{frame}{Domain Truncation and Discretization}
+    \begin{itemize}
+        \item Truncate semi-infinite domain \( x \in [0, \infty) \) to \( x \in [0, x_{\max}] \), where \( x_{\max} = \ln(5) \).
+        \item Discretize with uniform grids:
+        \begin{itemize}
+            \item Spatial: \( \Delta x = \frac{x_{\max}}{M} \)
+            \item Temporal: \( \Delta \tau = \frac{\tau_{\exp}}{N} \), where \( \tau_{\exp} = \frac{T \sigma^2}{2} \)
+        \end{itemize}
+        \item Grid points: \( P_m^n \) represents the solution at \( (x_m, \tau_n) \).
+    \end{itemize}
+\end{frame}
+
+% Slide 7: Boundary Condition Derivation
+\begin{frame}{Boundary Condition Derivation}
+    \begin{itemize}
+        \item \textbf{Goal}: Eliminate fictitious value \( P_{-1}^{n+1} \) and relate \( P_1^{n+1} \) to \( S_f^{n+1} \).
+        \item Finite difference at boundary:
+        \[
+        \frac{P_1^{n+1} - 2 P_0^{n+1} + P_{-1}^{n+1}}{\Delta x^2} - (D + 1) S_f^{n+1} + \gamma = 0
+        \]
+        \item Use boundary conditions: \( P_0^{n+1} = 1 - S_f^{n+1} \), \( \frac{P_1^{n+1} - P_{-1}^{n+1}}{2 \Delta x} = -S_f^{n+1} \)
+        \item Result: \( P_1^{n+1} = \alpha - \beta S_f^{n+1} \), where:
+        \[
+        \alpha = 1 + \frac{\gamma}{2} \Delta x^2, \quad \beta = 1 + \Delta x + \frac{D + 1}{2} \Delta x^2
+        \]
+    \end{itemize}
+\end{frame}
+
+% Slide 8: Predictor Scheme (Revised)
+\begin{frame}{Predictor Scheme: Explicit Euler}
+    \begin{itemize}
+        \item \textbf{Objective}: Estimate \( \hat{S}_f^{n+1} \) using the explicit Euler scheme.
+        \item \textbf{Discretized PDE at \( x_1 = \Delta x \)}:
+        \[
+        \begin{aligned}
+        \frac{\hat{P}_1^{n+1} - P_1^n}{\Delta \tau} = & \frac{P_2^n - 2 P_1^n + P_0^n}{\Delta x^2} \\
+        & + (\gamma - D - 1) \frac{P_2^n - P_0^n}{2 \Delta x} \\
+        & + \gamma P_1^n \\
+        & - \frac{P_2^n - P_0^n}{2 \Delta x} \cdot \frac{\hat{S}_f^{n+1} - S_f^n}{\Delta \tau}
+        \end{aligned}
+        \]
+        \item \textbf{Terms}:
+        \begin{itemize}
+            \item \( C = \frac{P_2^n - 2 P_1^n + P_0^n}{\Delta x^2} \)
+            \item \( \text{termD} = (\gamma - D - 1) \frac{P_2^n - P_0^n}{2 \Delta x} \)
+            \item \( E = \gamma P_1^n \)
+            \item \( F = \frac{P_2^n - P_0^n}{2 \Delta x S_f^n} \)
+        \end{itemize}
+        \item \textbf{Prediction}:
+        \[
+        \hat{S}_f^{n+1} = \frac{\alpha - P_1^n + F \cdot S_f^n - (C + \text{termD} - E) \cdot \Delta \tau}{F + \beta}
+        \]
+        \item \textbf{Stability}: Requires CFL condition: \( \frac{\Delta \tau}{\Delta x^2} \leq 1 \).
+    \end{itemize}
+\end{frame}
+
+% Slide 9: Corrector Scheme (New)
+\begin{frame}{Corrector Scheme: Crank-Nicolson}
+    \begin{itemize}
+        \item \textbf{Objective}: Refine \( P_m^{n+1} \) and compute final \( S_f^{n+1} \) using Crank-Nicolson.
+        \item \textbf{Discretized PDE}:
+        \[
+        \frac{P_m^{n+1} - P_m^n}{\Delta \tau} - \frac{P_{m+1}^{n+1} - 2 P_m^{n+1} + P_{m-1}^{n+1} + P_{m+1}^n - 2 P_m^n + P_{m-1}^n}{2 \Delta x^2}
+        \]
+        \[
+        - (\gamma - D - 1) \frac{P_{m+1}^{n+1} - P_{m-1}^{n+1} + P_{m+1}^n - P_{m-1}^n}{4 \Delta x} - \gamma \frac{P_m^{n+1} + P_m^n}{2}
+        \]
+        \[
+        = \frac{P_{m+1}^{n+1} - P_{m-1}^{n+1} + P_{m+1}^n - P_{m-1}^n}{4 \Delta x} \frac{2}{S_f^{n+1} + S_f^n} \frac{S_f^{n+1} - S_f^n}{\Delta \tau}
+        \]
+        \item \textbf{Matrix Form}: \( A P_m^{n+1} = B P_m^n + \epsilon \), where \( A \) and \( B \) are tridiagonal.
+        \item \textbf{Coefficients}:
+        \begin{itemize}
+            \item \( a = \frac{\Delta \tau}{2 \Delta x^2} - \frac{\gamma - D - 1}{4} \frac{\Delta \tau}{\Delta x} - \frac{1}{2 \Delta x} \frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n} \)
+            \item \( b = 1 + \frac{\Delta \tau}{\Delta x^2} + \frac{\gamma}{2} \Delta \tau \)
+            \item \( c = \frac{\Delta \tau}{2 \Delta x^2} + \frac{\gamma - D - 1}{4} \frac{\Delta \tau}{\Delta x} + \frac{1}{2 \Delta x} \frac{S_f^{n+1} - S_f^n}{S_f^{n+1} + S_f^n} \)
+        \end{itemize}
+        \item \textbf{Features}: Second-order accuracy, unconditional stability.
+    \end{itemize}
+\end{frame}
+
+\end{document}
