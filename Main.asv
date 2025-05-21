@@ -9,19 +9,18 @@ X = 100;
 
 x_max = log(5); 
 dx = x_max / M; 
-x = linspace(0,x_max, M+1);
+x = 0:dx:x_max;
 
 tau_exp = T * sigma^2 / 2; 
 dtau = tau_exp / N; 
-
+tau = 0:dtau:tau_exp;
 
 [S_f, P] = american_option(N,M);
+S_f = S_f * 100;
 
+% figure(1);
+size(P)
 
-figure(1);
-t =  linspace(0,1, N+1);
-plot(t, S_f);
-
-figure(2);
-surf(t, x, P);
-
+% 
+% figure(2);
+% surf(tau, x, P);
