@@ -178,4 +178,35 @@
     \end{itemize}
 \end{frame}
 
+Combined Visualization
+\begin{frame}{Free Boundary and Option Value Surface}
+  \begin{itemize}
+    \item The free boundary $S_f(t)$ decreases over time, reflecting the declining benefit of early exercise.
+    \item The surface plot of $P(x, \tau)$ shows the evolution of the option price and sharp transition near the boundary.
+  \end{itemize}
+  \begin{center}
+    \includegraphics[width=0.45\textwidth]{exercise_boundary.png}\hspace{0.5cm}
+    \includegraphics[width=0.45\textwidth]{option_surface.png}
+  \end{center}
+\end{frame}
+
+% Slide: Summary
+\begin{frame}{Summary of Numerical Results}
+  \begin{itemize}
+    \item Time convergence ~ 1st order
+    \item Space convergence ~ 2nd--3rd order (with caveats)
+    \item Method captures free boundary and price dynamics well
+    \item Some instability observed at very fine grids (e.g., M = 400)
+  \end{itemize}
+\end{frame}
+
+% Slide: Conclusion
+\begin{frame}{Conclusion}
+  In this work, we have implemented a predictor-corrector scheme for solving the free boundary problem in American option pricing. \\[1ex]
+  By transforming the domain using the Landau transform, we fixed the location of the exercise boundary and simplified the PDE structure. \\[1ex]
+  The predictor step estimates the free boundary position, while the corrector refines it through a Crank–Nicolson method. \\[1ex]
+  Our numerical experiments confirm that the method captures the shape and evolution of the optimal exercise boundary with good accuracy and convergence. \\[1ex]
+  This framework provides a solid base for further research into more complex option pricing models.
+\end{frame}
+
 \end{document}
